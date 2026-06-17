@@ -8,7 +8,7 @@ const fs = require('fs');
 // ============================================
 // 1. 加载JSON配置文件（Git驱动的可配置系统）
 // ============================================
-const CONFIG_DIR = path.join(__dirname, '../config');
+const CONFIG_DIR = path.join(__dirname, 'config');
 
 function loadJSONConfig(filename) {
   try {
@@ -22,7 +22,6 @@ function loadJSONConfig(filename) {
   return null;
 }
 
-// 加载所有配置
 const wordBankConfig = loadJSONConfig('wordBank.json');
 const synonymsConfig = loadJSONConfig('synonyms.json');
 const hintsConfig = loadJSONConfig('hints.json');
@@ -51,7 +50,6 @@ const CATEGORIES = wordBankConfig ? wordBankConfig.categories : {
   brand: ['苹果', '华为', '小米', '耐克', '阿迪达斯', '星巴克']
 };
 
-// 关联词提示库
 const WORD_HINTS = hintsConfig ? hintsConfig : {
   '苹果': ['水果', '红色', '香甜'],
   '香蕉': ['水果', '黄色', '剥皮'],
@@ -65,7 +63,6 @@ const WORD_HINTS = hintsConfig ? hintsConfig : {
   '王者荣耀': ['手游', '五杀', '排位']
 };
 
-// 同义词库
 const SYNONYMS = synonymsConfig ? synonymsConfig : {
   '苹果': ['红富士', '蛇果', '水果'],
   '教师': ['老师', '教授', '教员', '导师'],
@@ -74,12 +71,11 @@ const SYNONYMS = synonymsConfig ? synonymsConfig : {
   '电脑': ['计算机', 'PC', '微机', '笔记本']
 };
 
-// 获取所有词汇并过滤单字词
 function getAllWords() {
   const allWords = [];
   for (const [category, words] of Object.entries(CATEGORIES)) {
     for (const word of words) {
-      if (word.length >= 2) { // 3. 词语长度限制：只保留2字及以上
+      if (word.length >= 2) {
         allWords.push({ word, category });
       }
     }
@@ -87,11 +83,29 @@ function getAllWords() {
   return allWords;
 }
 
-const ALL_WORDS = getAllWords();
+let ALL_WORDS = getAllWords();
 const TOTAL_WORDS = ALL_WORDS.length;
 
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1) + Date.now() % 100 / 100) % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+ALL_WORDS = shuffleArray(ALL_WORDS);
+
 function getRandomWord() {
-  const index = Math.floor(Math.random() * ALL_WORDS.length);
+  if (Math.random() > 0.7) {
+    ALL_WORDS = shuffleArray(ALL_WORDS);
+  }
+  const timeSeed = Date.now() % 1000;
+  const random1 = Math.random();
+  const random2 = Math.random();
+  const combinedRandom = (random1 * 0.6 + random2 * 0.3 + timeSeed / 3000 * 0.1);
+  const index = Math.floor(combinedRandom * ALL_WORDS.length) % ALL_WORDS.length;
   return ALL_WORDS[index];
 }
 
@@ -100,9 +114,10 @@ function getCategories() {
 }
 
 console.log(`[词库] 已加载 ${TOTAL_WORDS} 个词汇（全部>=2字）, ${getCategories().length} 个分类`);
+console.log(`[随机测试] 启动测试选词: ${getRandomWord().word}, ${getRandomWord().word}, ${getRandomWord().word}`);
 
 // ============================================
-// 6. AI智能相似度算法（基准值整体提高20-30分）
+// 6. AI智能相似度算法
 // ============================================
 const AI_CACHE = new Map();
 const AI_CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -126,17 +141,14 @@ function smartHeuristicCalculation(guess, answer) {
   const g = guess.trim().toLowerCase();
   const a = answer.trim().toLowerCase();
   
-  // 层级1：精确匹配（100分）
   if (g === a) return 100;
   
-  // 层级2：同义词匹配（95-100分，提高基准）
   for (const [main, syns] of Object.entries(SYNONYMS)) {
     if ((main === a && syns.includes(g)) || (main === g && syns.includes(a))) {
       return 95 + Math.floor(Math.random() * 6);
     }
   }
   
-  // 层级3：包含关系（80-90分，提高基准）
   if (g.includes(a)) {
     return 85 + Math.floor(Math.random() * 6);
   }
@@ -144,14 +156,12 @@ function smartHeuristicCalculation(guess, answer) {
     return 75 + Math.floor(Math.random() * 6);
   }
   
-  // 层级4：同类别匹配（65-80分，提高基准）
   for (const cats of Object.values(CATEGORIES)) {
     if (cats.some(c => c.toLowerCase() === g) && cats.some(c => c.toLowerCase() === a)) {
       return 65 + Math.floor(Math.random() * 16);
     }
   }
   
-  // 层级5：语义关联网络（45-65分，提高基准）
   const associations = similarityMapConfig ? similarityMapConfig.associations : {
     '苹果': { '水果': 85, '香蕉': 65, '红色': 50 },
     '教师': { '学生': 70, '学校': 65, '教育': 75 },
@@ -168,7 +178,6 @@ function smartHeuristicCalculation(guess, answer) {
     return associations[g][a] + Math.floor(Math.random() * 10) - 5;
   }
   
-  // 层级6：通用关联（25-45分，提高基准）
   const generalAssoc = similarityMapConfig ? similarityMapConfig.generalAssociations : {
     '吃': ['食物', '饭', '饿', '美味'],
     '喝': ['水', '饮料', '渴', '茶'],
@@ -181,7 +190,6 @@ function smartHeuristicCalculation(guess, answer) {
     }
   }
   
-  // 层级7：微相关（保底15-25分，确保大部分合理猜词>=40分）
   return 15 + Math.floor(Math.random() * 11);
 }
 
@@ -214,7 +222,6 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// CORS跨域配置（支持前后端分离部署）
 const FRONTEND_URL = process.env.FRONTEND_URL || '*';
 app.use(cors({
   origin: FRONTEND_URL,
@@ -222,14 +229,16 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 静态文件服务
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
+if (fs.existsSync(path.join(__dirname, '../frontend/dist'))) {
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+}
 
 // ============================================
 // 核心配置
 // ============================================
 const ROOM_EXPIRE_TIME = 2 * 60 * 60 * 1000;
 const USER_OFFLINE_TIMEOUT = 30 * 1000;
+const SKIP_VOTE_THRESHOLD = 0.75;
 
 const rooms = new Map();
 const clients = new Map();
@@ -243,7 +252,6 @@ function generateToken() {
   return 'user_' + Math.random().toString(36).substring(2, 15);
 }
 
-// 定时清理过期房间
 setInterval(() => {
   const now = Date.now();
   rooms.forEach((room, roomId) => {
@@ -271,7 +279,37 @@ function broadcastToRoom(roomId, message, excludeClientId = null) {
 }
 
 // ============================================
-// 4. 获取完整游戏状态（修复新用户看不到提示）
+// 🏆 新增：排行榜功能
+// ============================================
+function getLeaderboard(room) {
+  // 按猜对次数从高到低排序
+  const sorted = [...room.users]
+    .sort((a, b) => (b.correctCount || 0) - (a.correctCount || 0))
+    .map((user, index) => ({
+      id: user.id,
+      nickname: user.nickname,
+      correctCount: user.correctCount || 0,
+      rank: index + 1,
+      online: user.online
+    }));
+  
+  return sorted;
+}
+
+function broadcastLeaderboard(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  
+  broadcastToRoom(roomId, {
+    type: 'LEADERBOARD_UPDATE',
+    data: {
+      leaderboard: getLeaderboard(room)
+    }
+  });
+}
+
+// ============================================
+// 获取完整游戏状态
 // ============================================
 function getFullGameState(roomId) {
   const room = rooms.get(roomId);
@@ -290,40 +328,41 @@ function getFullGameState(roomId) {
     guesses: room.guesses,
     guessCount: room.guessCount,
     aiHints: room.aiHints,
-    gameStarted: room.gameStarted
+    gameStarted: room.gameStarted,
+    skipVote: getSkipVoteStatus(room),
+    leaderboard: getLeaderboard(room) // 🏆 新增：排行榜
   };
 }
 
-// ============================================
-// 7. 新提示系统：关联词提示（完全重写）
-// ============================================
+function getSkipVoteStatus(room) {
+  const onlineUsers = room.users.filter(u => u.online).length;
+  const votedCount = room.skipVotes ? room.skipVotes.size : 0;
+  const percent = onlineUsers > 0 ? Math.round((votedCount / onlineUsers) * 100) : 0;
+  
+  return {
+    votes: votedCount,
+    total: onlineUsers,
+    percent: percent,
+    canSkip: percent >= SKIP_VOTE_THRESHOLD * 100
+  };
+}
+
 function triggerHints(room) {
   const word = room.currentWord;
   const hints = WORD_HINTS[word] || ['常见词语', '生活常用', '大家都懂'];
   const count = room.guessCount;
   
-  // 第10次猜词：显示第1个关联词
   if (count === 10 && room.aiHints.length === 0) {
     room.aiHints.push(hints[0]);
-    console.log(`[提示] 第10次，显示: ${hints[0]}`);
   }
-  
-  // 第15次猜词：显示第2个关联词
   if (count === 15 && room.aiHints.length === 1) {
     room.aiHints.push(hints[1]);
-    console.log(`[提示] 第15次，显示: ${hints[0]}, ${hints[1]}`);
   }
-  
-  // 第20次猜词：显示第3个关联词
   if (count === 20 && room.aiHints.length === 2) {
     room.aiHints.push(hints[2]);
-    console.log(`[提示] 第20次，显示: ${hints.join(', ')}`);
   }
 }
 
-// ============================================
-// 开始新一轮
-// ============================================
 function startNewRound(roomId) {
   const room = rooms.get(roomId);
   if (!room) return;
@@ -334,10 +373,11 @@ function startNewRound(roomId) {
   room.round++;
   room.guesses = [];
   room.guessCount = 0;
-  room.aiHints = []; // 重置提示
+  room.aiHints = [];
+  room.skipVotes = new Set();
   room.gameStarted = true;
   
-  console.log(`[新一轮] 答案: ${word}, 关联词: ${WORD_HINTS[word] || '无'}`);
+  console.log(`[新一轮] 答案: ${word}`);
   
   broadcastToRoom(roomId, {
     type: 'NEW_ROUND',
@@ -346,9 +386,44 @@ function startNewRound(roomId) {
       category: category,
       wordLength: word.length,
       guessCount: 0,
-      aiHints: []
+      aiHints: [],
+      skipVote: getSkipVoteStatus(room)
     }
   });
+}
+
+function handleVoteSkip(clientId, { roomId }) {
+  const normalizedRoomId = roomId.toUpperCase();
+  const room = rooms.get(normalizedRoomId);
+  if (!room) return;
+  
+  const user = room.users.find(u => u.clientId === clientId);
+  if (!user) return;
+  
+  if (!room.skipVotes) {
+    room.skipVotes = new Set();
+  }
+  
+  room.skipVotes.add(user.id);
+  const voteStatus = getSkipVoteStatus(room);
+  
+  broadcastToRoom(normalizedRoomId, {
+    type: 'SKIP_VOTE_UPDATE',
+    data: voteStatus
+  });
+  
+  if (voteStatus.canSkip) {
+    broadcastToRoom(normalizedRoomId, {
+      type: 'ROUND_SKIPPED',
+      data: { correctWord: room.currentWord }
+    });
+    
+    setTimeout(() => {
+      if (rooms.has(normalizedRoomId)) {
+        startNewRound(normalizedRoomId);
+      }
+    }, 3000);
+  }
 }
 
 // ============================================
@@ -392,6 +467,9 @@ function handleMessage(ws, clientId, message) {
     case 'MAKE_GUESS':
       handleMakeGuess(clientId, data);
       break;
+    case 'VOTE_SKIP':
+      handleVoteSkip(clientId, data);
+      break;
     case 'LEAVE_ROOM':
       handleLeaveRoom(clientId, data);
       break;
@@ -408,7 +486,8 @@ function handleCreateRoom(ws, clientId, { nickname }) {
     clientId: clientId,
     nickname: nickname || '匿名玩家',
     token: token,
-    online: true
+    online: true,
+    correctCount: 0 // 🏆 新增：猜对次数
   };
   
   const room = {
@@ -420,6 +499,7 @@ function handleCreateRoom(ws, clientId, { nickname }) {
     guesses: [],
     guessCount: 0,
     aiHints: [],
+    skipVotes: new Set(),
     gameStarted: false,
     createdAt: Date.now()
   };
@@ -439,9 +519,6 @@ function handleCreateRoom(ws, clientId, { nickname }) {
   }));
 }
 
-// ============================================
-// 4. 修复：新用户加入时发送完整游戏状态
-// ============================================
 function handleJoinRoom(ws, clientId, { roomId, nickname, token, userId }) {
   const normalizedRoomId = roomId.toUpperCase();
   const room = rooms.get(normalizedRoomId);
@@ -473,7 +550,8 @@ function handleJoinRoom(ws, clientId, { roomId, nickname, token, userId }) {
       clientId: clientId,
       nickname: nickname || '匿名玩家',
       token: newToken,
-      online: true
+      online: true,
+      correctCount: 0 // 🏆 新增：猜对次数
     };
     room.users.push(user);
     existingUser = user;
@@ -487,7 +565,6 @@ function handleJoinRoom(ws, clientId, { roomId, nickname, token, userId }) {
     }
   }, clientId);
   
-  // 4. 关键修复：发送完整游戏状态给新用户
   ws.send(JSON.stringify({
     type: 'ROOM_JOINED',
     data: {
@@ -495,7 +572,7 @@ function handleJoinRoom(ws, clientId, { roomId, nickname, token, userId }) {
       token: existingUser.token,
       userId: existingUser.id,
       user: { id: existingUser.id, nickname: existingUser.nickname },
-      gameState: getFullGameState(normalizedRoomId) // 完整状态
+      gameState: getFullGameState(normalizedRoomId)
     }
   }));
   
@@ -525,7 +602,6 @@ async function handleMakeGuess(clientId, { roomId, text }) {
   room.guesses.push(guess);
   room.guessCount++;
   
-  // 7. 触发新的关联词提示系统
   triggerHints(room);
   
   broadcastToRoom(normalizedRoomId, {
@@ -534,11 +610,19 @@ async function handleMakeGuess(clientId, { roomId, text }) {
       guess: guess,
       allGuesses: room.guesses,
       guessCount: room.guessCount,
-      aiHints: room.aiHints
+      aiHints: room.aiHints,
+      skipVote: getSkipVoteStatus(room)
     }
   });
   
   if (similarity.isCorrect) {
+    // 🏆 猜对了，增加计数
+    user.correctCount = (user.correctCount || 0) + 1;
+    console.log(`[排行榜] ${user.nickname} 猜对了！累计: ${user.correctCount}次`);
+    
+    // 🏆 广播排行榜更新
+    broadcastLeaderboard(normalizedRoomId);
+    
     broadcastToRoom(normalizedRoomId, {
       type: 'ROUND_WON',
       data: {
@@ -565,6 +649,10 @@ function handleLeaveRoom(clientId, { roomId }) {
     const user = room.users[userIndex];
     room.users.splice(userIndex, 1);
     
+    if (room.skipVotes) {
+      room.skipVotes.delete(user.id);
+    }
+    
     broadcastToRoom(normalizedRoomId, {
       type: 'USER_LEFT',
       data: {
@@ -572,6 +660,9 @@ function handleLeaveRoom(clientId, { roomId }) {
         gameState: getFullGameState(normalizedRoomId)
       }
     });
+    
+    // 🏆 用户离开也更新排行榜
+    broadcastLeaderboard(normalizedRoomId);
   }
 }
 
@@ -583,6 +674,10 @@ function handleDisconnect(clientId) {
     if (user) {
       user.online = false;
       
+      if (room.skipVotes) {
+        room.skipVotes.delete(user.id);
+      }
+      
       broadcastToRoom(roomId, {
         type: 'USER_OFFLINE',
         data: {
@@ -590,6 +685,9 @@ function handleDisconnect(clientId) {
           gameState: getFullGameState(roomId)
         }
       });
+      
+      // 🏆 用户离线也更新排行榜
+      broadcastLeaderboard(roomId);
       
       const timer = setTimeout(() => {
         if (!user.online && rooms.has(roomId)) {
@@ -604,6 +702,7 @@ function handleDisconnect(clientId) {
                 gameState: getFullGameState(roomId)
               }
             });
+            broadcastLeaderboard(roomId);
           }
         }
         userReconnectTimers.delete(user.id);
@@ -614,7 +713,6 @@ function handleDisconnect(clientId) {
   });
 }
 
-// API接口
 app.get('/api/stats', (req, res) => {
   res.json({
     totalRooms: rooms.size,
@@ -628,21 +726,18 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
-});
-
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════════════╗
-║      心有灵犀 - 多人在线猜词游戏 v3.0            ║
+║      心有灵犀 - 多人在线猜词游戏 v3.2            ║
 ╠══════════════════════════════════════════════════╣
 ║  端口: ${PORT}                                       ║
 ║  词库: ${TOTAL_WORDS} 个词汇（全部>=2字）               ║
+║  🏆 新增: 房间排行榜功能                             ║
 ║  配置: JSON文件驱动，Git推送即生效                 ║
 ║  提示系统: 关联词提示（10/15/20次触发）            ║
-║  算法: 基准值整体提高，确保合理猜词>=40分          ║
+║  跳过投票: 75%玩家同意自动跳过                     ║
 ╚══════════════════════════════════════════════════╝
   `);
 });
