@@ -50,19 +50,85 @@ const CATEGORIES = wordBankConfig ? wordBankConfig.categories : {
   brand: ['苹果', '华为', '小米', '耐克', '阿迪达斯', '星巴克']
 };
 
-const WORD_HINTS = hintsConfig ? hintsConfig : {
-  '苹果': ['水果', '红色', '香甜'],
-  '香蕉': ['水果', '黄色', '剥皮'],
-  '橙子': ['水果', '橙色', '维C'],
-  '教师': ['学校', '教育', '学生'],
-  '医生': ['医院', '治病', '病人'],
-  '手机': ['通讯', '智能', '拍照'],
-  '电脑': ['上网', '办公', '游戏'],
-  '汽车': ['代步', '汽油', '四个轮子'],
-  '爱情': ['浪漫', '约会', '牵手'],
-  '王者荣耀': ['手游', '五杀', '排位']
+// 分类中文名映射
+const CATEGORY_NAMES = {
+  animals: '动物',
+  food: '水果',
+  profession: '职业',
+  transportation: '交通工具',
+  electronics: '电器',
+  sports: '运动',
+  nature: '自然',
+  daily: '日用品',
+  places: '场所',
+  abstract: '抽象',
+  idiom: '成语',
+  anime: '动漫',
+  game: '游戏',
+  movie: '电影',
+  brand: '品牌'
 };
 
+// ============================================
+// ✨ 重写：智能提示系统（兜底机制）
+// ============================================
+const WORD_HINTS = hintsConfig ? hintsConfig : {};
+
+// 获取词语分类
+function getWordCategory(word) {
+  for (const [category, words] of Object.entries(CATEGORIES)) {
+    if (words.includes(word)) {
+      return CATEGORY_NAMES[category] || category;
+    }
+  }
+  return '词语';
+}
+
+// 获取拼音首字母（简单实现）
+function getFirstPinyin(word) {
+  const firstChar = word.charAt(0);
+  // 简单映射常用字
+  const pinyinMap = {
+    '老': 'L', '狮': 'S', '大': 'D', '熊': 'X', '猴': 'H', '兔': 'T', '猫': 'M', '狗': 'G',
+    '苹': 'P', '香': 'X', '橙': 'C', '葡': 'P', '西': 'X', '草': 'C', '芒': 'M', '菠': 'B',
+    '教': 'J', '医': 'Y', '护': 'H', '警': 'J', '消': 'X', '厨': 'C', '司': 'S',
+    '汽': 'Q', '火': 'H', '飞': 'F', '轮': 'L', '地': 'D', '高': 'G', '自': 'Z',
+    '手': 'S', '电': 'D', '平': 'P', '冰': 'B', '空': 'K', '洗': 'X',
+    '足': 'Z', '篮': 'L', '排': 'P', '网': 'W', '羽': 'Y', '乒': 'P', '游': 'Y',
+    '太': 'T', '月': 'Y', '星': 'X', '云': 'Y', '彩': 'C', '海': 'H', '河': 'H',
+    '牙': 'Y', '毛': 'M', '镜': 'J', '眼': 'Y', '雨': 'Y', '帽': 'M', '鞋': 'X',
+    '学': 'X', '医': 'Y', '商': 'S', '公': 'G', '电': 'D', '餐': 'C', '酒': 'J',
+    '爱': 'A', '友': 'Y', '梦': 'M', '希': 'X', '幸': 'X', '快': 'K', '时': 'S',
+    '守': 'S', '亡': 'W', '画': 'H', '对': 'D', '掩': 'Y',
+    '华': 'H', '小': 'X', '耐': 'N', '阿': 'A', '星': 'X'
+  };
+  return pinyinMap[firstChar] || firstChar;
+}
+
+// ✨ 智能获取提示（兜底机制）
+function getSmartHints(word, category) {
+  // 优先使用预定义提示
+  if (WORD_HINTS[word] && WORD_HINTS[word].length >= 3) {
+    return WORD_HINTS[word];
+  }
+  
+  // 兜底机制：自动生成3个有用的提示
+  const categoryName = CATEGORY_NAMES[category] || getWordCategory(word);
+  const wordLength = word.length;
+  const firstLetter = getFirstPinyin(word);
+  
+  return [
+    categoryName,                    // 第1个提示：分类
+    `${wordLength}个字`,             // 第2个提示：字数
+    `首字母${firstLetter}`           // 第3个提示：拼音首字母
+  ];
+}
+
+console.log('[提示系统] 智能提示已加载，支持兜底机制');
+
+// ============================================
+// 同义词库
+// ============================================
 const SYNONYMS = synonymsConfig ? synonymsConfig : {
   '苹果': ['红富士', '蛇果', '水果'],
   '教师': ['老师', '教授', '教员', '导师'],
@@ -279,10 +345,9 @@ function broadcastToRoom(roomId, message, excludeClientId = null) {
 }
 
 // ============================================
-// 🏆 新增：排行榜功能
+// 🏆 排行榜功能
 // ============================================
 function getLeaderboard(room) {
-  // 按猜对次数从高到低排序
   const sorted = [...room.users]
     .sort((a, b) => (b.correctCount || 0) - (a.correctCount || 0))
     .map((user, index) => ({
@@ -330,7 +395,7 @@ function getFullGameState(roomId) {
     aiHints: room.aiHints,
     gameStarted: room.gameStarted,
     skipVote: getSkipVoteStatus(room),
-    leaderboard: getLeaderboard(room) // 🏆 新增：排行榜
+    leaderboard: getLeaderboard(room)
   };
 }
 
@@ -347,19 +412,33 @@ function getSkipVoteStatus(room) {
   };
 }
 
+// ============================================
+// ✨ 重写：触发智能提示系统
+// ============================================
 function triggerHints(room) {
   const word = room.currentWord;
-  const hints = WORD_HINTS[word] || ['常见词语', '生活常用', '大家都懂'];
+  const category = room.currentCategory;
+  const hints = getSmartHints(word, category); // ✨ 使用智能提示
   const count = room.guessCount;
   
+  console.log(`[提示系统] ${word} 提示: ${hints.join(', ')}`);
+  
+  // 第10次猜词：显示第1个提示（分类/上位词）
   if (count === 10 && room.aiHints.length === 0) {
     room.aiHints.push(hints[0]);
+    console.log(`[提示] 第10次，显示: ${hints[0]}`);
   }
+  
+  // 第15次猜词：显示第2个提示（特征/属性）
   if (count === 15 && room.aiHints.length === 1) {
     room.aiHints.push(hints[1]);
+    console.log(`[提示] 第15次，显示: ${hints[0]}, ${hints[1]}`);
   }
+  
+  // 第20次猜词：显示第3个提示（功能/用途）
   if (count === 20 && room.aiHints.length === 2) {
     room.aiHints.push(hints[2]);
+    console.log(`[提示] 第20次，显示: ${hints.join(', ')}`);
   }
 }
 
@@ -377,7 +456,8 @@ function startNewRound(roomId) {
   room.skipVotes = new Set();
   room.gameStarted = true;
   
-  console.log(`[新一轮] 答案: ${word}`);
+  const hints = getSmartHints(word, category);
+  console.log(`[新一轮] 答案: ${word}, 分类: ${category}, 提示: ${hints.join(', ')}`);
   
   broadcastToRoom(roomId, {
     type: 'NEW_ROUND',
@@ -413,6 +493,7 @@ function handleVoteSkip(clientId, { roomId }) {
   });
   
   if (voteStatus.canSkip) {
+    console.log(`[跳过本轮] 达到75%，答案: ${room.currentWord}`);
     broadcastToRoom(normalizedRoomId, {
       type: 'ROUND_SKIPPED',
       data: { correctWord: room.currentWord }
@@ -487,7 +568,7 @@ function handleCreateRoom(ws, clientId, { nickname }) {
     nickname: nickname || '匿名玩家',
     token: token,
     online: true,
-    correctCount: 0 // 🏆 新增：猜对次数
+    correctCount: 0
   };
   
   const room = {
@@ -551,7 +632,7 @@ function handleJoinRoom(ws, clientId, { roomId, nickname, token, userId }) {
       nickname: nickname || '匿名玩家',
       token: newToken,
       online: true,
-      correctCount: 0 // 🏆 新增：猜对次数
+      correctCount: 0
     };
     room.users.push(user);
     existingUser = user;
@@ -616,11 +697,8 @@ async function handleMakeGuess(clientId, { roomId, text }) {
   });
   
   if (similarity.isCorrect) {
-    // 🏆 猜对了，增加计数
     user.correctCount = (user.correctCount || 0) + 1;
     console.log(`[排行榜] ${user.nickname} 猜对了！累计: ${user.correctCount}次`);
-    
-    // 🏆 广播排行榜更新
     broadcastLeaderboard(normalizedRoomId);
     
     broadcastToRoom(normalizedRoomId, {
@@ -661,7 +739,6 @@ function handleLeaveRoom(clientId, { roomId }) {
       }
     });
     
-    // 🏆 用户离开也更新排行榜
     broadcastLeaderboard(normalizedRoomId);
   }
 }
@@ -686,7 +763,6 @@ function handleDisconnect(clientId) {
         }
       });
       
-      // 🏆 用户离线也更新排行榜
       broadcastLeaderboard(roomId);
       
       const timer = setTimeout(() => {
@@ -730,13 +806,13 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════════════╗
-║      心有灵犀 - 多人在线猜词游戏 v3.2            ║
+║      心有灵犀 - 多人在线猜词游戏 v3.3            ║
 ╠══════════════════════════════════════════════════╣
 ║  端口: ${PORT}                                       ║
 ║  词库: ${TOTAL_WORDS} 个词汇（全部>=2字）               ║
-║  🏆 新增: 房间排行榜功能                             ║
+║  🏆 排行榜功能                                       ║
+║  ✨ 智能提示系统（支持兜底机制）                     ║
 ║  配置: JSON文件驱动，Git推送即生效                 ║
-║  提示系统: 关联词提示（10/15/20次触发）            ║
 ║  跳过投票: 75%玩家同意自动跳过                     ║
 ╚══════════════════════════════════════════════════╝
   `);
